@@ -59,3 +59,20 @@ class LedgerEntry(Base):
 
     transaction = relationship("Transaction", back_populates="entries")
     account = relationship("Account", back_populates="entries")
+
+class OutboxEvent(Base):
+    """
+    Events waiting to be published, written in the SAME transaction as the
+    ledger entries that caused them. This guarantees we never end up with
+    a ledger change that silently failed to notify other systems, or a
+    published event for a ledger change that didn't actually happen --
+    both write together, or neither does.
+    """
+    __tablename__ = "outbox_events"
+
+    id = Column(Integer, primary_key=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
+    event_type = Column(String, nullable=False)
+    payload = Column(String, nullable=False)  # JSON-serialized event data
+    published = Column(Integer, default=0)  # 0 = pending, 1 = published
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

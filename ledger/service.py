@@ -6,11 +6,12 @@ that sum to zero. There is no function anywhere that lets you update
 an account balance directly — balances are always derived from entries.
 """
 
+import json
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from ledger.models import Account, Transaction, LedgerEntry, EntryType
+from ledger.models import Account, Transaction, LedgerEntry, EntryType, OutboxEvent
 
 
 class UnbalancedTransactionError(Exception):
@@ -73,6 +74,16 @@ def post_transaction(
             entry_type=entry_type,
             amount=amount,
         ))
+
+    db.add(OutboxEvent(
+        transaction_id=transaction.id,
+        event_type="payment.posted",
+        payload=json.dumps({
+            "transaction_id": transaction.id,
+            "idempotency_key": idempotency_key,
+            "description": description,
+        }),
+    ))
 
     db.commit()
     return transaction
